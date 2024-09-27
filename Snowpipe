@@ -1,0 +1,52 @@
+CREATE OR REPLACE STORAGE INTEGRATION MY_INTEGRATION
+  TYPE = EXTERNAL_STAGE
+  STORAGE_PROVIDER = 'S3'
+  ENABLED = TRUE
+  STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::058264108731:role/2nd_lambda'
+  STORAGE_ALLOWED_LOCATIONS = ('s3://demo-mybuckets');
+ 
+ 
+CREATE OR REPLACE STAGE temp_stage
+URL = 's3://demo-mybuckets'
+STORAGE_INTEGRATION = MY_INTEGRATION
+FILE_FORMAT = (FORMAT_NAME = 'json_format');
+
+
+ CREATE OR REPLACE TABLE weather_data (
+    city STRING,
+    temperature STRING,
+    weather STRING,
+    humidity STRING,
+    location STRING,
+    id STRING,
+    time TIMESTAMP,
+    timestamp TIMESTAMP
+);
+
+
+
+CREATE OR REPLACE PIPE weather_data_pipe
+  AUTO_INGEST = TRUE
+  AS
+  COPY INTO weather_data
+  FROM (
+      SELECT
+          PARSE_JSON($1):city::STRING AS city,
+          PARSE_JSON($1):temperature::STRING AS temperature,
+          PARSE_JSON($1):weather::STRING AS weather,
+          PARSE_JSON($1):humidity::STRING AS humidity,
+          PARSE_JSON($1):location::STRING AS location,
+          PARSE_JSON($1):id::STRING AS id,
+          PARSE_JSON($1):time::TIMESTAMP AS time,
+          PARSE_JSON($1):timestamp::TIMESTAMP AS timestamp
+      FROM @temp_stage
+  )
+  FILE_FORMAT = (FORMAT_NAME = 'json_format');
+
+
+SHOW PIPES LIKE 'weather_data_pipe';
+
+
+
+SELECT *
+FROM weather_data;
